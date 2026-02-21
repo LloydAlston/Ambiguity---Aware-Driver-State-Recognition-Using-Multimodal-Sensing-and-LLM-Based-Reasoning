@@ -5,7 +5,6 @@ A late-fusion driver monitoring system built on ROS2 combining IR camera-based f
 > For full methodology, dataset details, experiments, and results see [`report/report.pdf`](report/report.pdf).  
 > Authors: Adit Raj Venkataraj, Harshitha Nidaghatta Siddaraju, Nikhil Prakash Katti, Lloyd Alston Dsouza  
 
-
 ---
 
 ## How it works
@@ -30,7 +29,7 @@ Per-minute features (PERCLOS, blink rate, blink duration, steering entropy, stee
 
 **`hybrid_vlm_node`** — On ambiguity flag, sends 8 IR frames (2 s at 4 Hz) to Qwen2.5-VL via Ollama. Returns structured JSON (occlusion, eye/mouth state, behaviours). Runs asynchronously — does not block the main pipeline.
 
-**`integrated_llm_node`** — Every 60 s, fuses ML outputs + VLM context via LLaMA 3.1 (Ollama). Outputs final state, intervention action, and reasoning trace. 
+**`integrated_llm_node`** — Every 60 s, fuses ML outputs + VLM context via LLaMA 3.1 (Ollama). Outputs final state, intervention action, and reasoning trace. Includes partial-trigger and watchdog fallback (85 s timeout).
 
 **`drowsiness_alert_dispatcher`** — Routes LLM decisions to intervention nodes.
 
@@ -90,6 +89,55 @@ ollama list
 
 ---
 
+## Prerequisites
+
+### CARLA Simulator
+
+1. Install CARLA 0.9.16 from the [official website](https://carla.org) — follow the [installation guide](https://carla.readthedocs.io/en/0.9.16/start_quickstart/)
+2. Launch CARLA with ROS2 support:
+
+```bash
+./CarlaUE4.sh --ros2
+```
+
+### Logitech G29 steering wheel (udev rules)
+
+```bash
+sudo nano /etc/udev/rules.d/99-logitech-g29.rules
+```
+
+Paste the following:
+
+```
+KERNEL=="hidraw*", ATTRS{idVendor}=="046d", ATTRS{idProduct}=="c24f", MODE="0666", SYMLINK+="logitech_g29"
+```
+
+Reload and trigger:
+
+```bash
+sudo udevadm control --reload-rules
+sudo udevadm trigger
+```
+
+### Custom ROS2 messages
+
+**Drowsiness Detection Messages** (`src/drowsiness_detection_msg/msg/`):
+
+| Message | Description | Key fields |
+|---|---|---|
+| `DrowsinessMetricsData.msg` | Complete drowsiness metrics | PERCLOS, blink rate, yawn frequency |
+| `EarMarValue.msg` | Facial measurements | EAR, MAR |
+| `LanePosition.msg` | Vehicle positioning | Lane deviation, heading angle |
+| `Vibration.msg` | Haptic feedback control | Intensity, duration, pattern |
+
+**CARLA Interface Messages** (`src/ros_carla_msgs/msg/`):
+
+| Message | Description |
+|---|---|
+| `CarlaEgoVehicleControl.msg` | Vehicle control interface for CARLA simulator |
+
+---
+
 ## Build and run
 
 ```bash
@@ -119,3 +167,6 @@ ros2 launch drowsiness_detection_pkg labelling_tool_launch.py
 
 ---
 
+## Credits
+
+`camera_mediapipe_node` and parts of `carla_manual_control` are based on the course lab repository shared at the start of the project. All other components were designed and implemented by the project team.
