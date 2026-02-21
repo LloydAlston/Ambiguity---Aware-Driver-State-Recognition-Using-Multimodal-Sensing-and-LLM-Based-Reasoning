@@ -3,7 +3,7 @@
 A late-fusion driver monitoring system built on ROS2 combining IR camera-based facial analysis, vehicle dynamics from CARLA, event-triggered VLM scene interpretation, and LLM-mediated reasoning. The system is **ambiguity-aware**: rather than forcing a hard classification when signals conflict or degrade, an LLM reasons over uncertainty across modalities and produces interpretable, conservative driver state decisions.
 
 > For full methodology, dataset details, experiments, and results see [`report/report.pdf`](report/report.pdf).  
-> Authors: Adit Raj Venkataraj, Harshitha Nidaghatta Siddaraju, Nikhil Prakash Katti, Lloyd Alston Dsouza  
+> Authors: [@aditrajv](https://github.com/aditrajv) · [@han6516](https://github.com/han6516) · [@nikhilkatti99-eng](https://github.com/nikhilkatti99-eng) · [@LloydAlston](https://github.com/LloydAlston) 
 
 ---
 
