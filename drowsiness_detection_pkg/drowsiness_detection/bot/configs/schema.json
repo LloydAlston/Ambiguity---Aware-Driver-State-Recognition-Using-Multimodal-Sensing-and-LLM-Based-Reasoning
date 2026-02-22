@@ -1,0 +1,33 @@
+{
+    "title": "DriverDrowsinessOutput",
+    "type": "object",
+    "required": [
+        "drowsiness_level",
+        "reasoning",
+        "tool_call"
+    ],
+    "properties": {
+        "drowsiness_level": {
+            "type": "string",
+            "enum": [
+                "High",
+                "Moderate",
+                "Low"
+            ],
+            "description": "The determined level of driver drowsiness."
+        },
+        "reasoning": {
+            "type": "string",
+            "description": "A concise explanation of why the drowsiness level was classified as such."
+        },
+        "tool_call": {
+            "type": "object",
+            "required": [
+                "name",
+                "args",
+                "description"
+            ]
+        }
+    },
+    "additionalProperties": false
+}
