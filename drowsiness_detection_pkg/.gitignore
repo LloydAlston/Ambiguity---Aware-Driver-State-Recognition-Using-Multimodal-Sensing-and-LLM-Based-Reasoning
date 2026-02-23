@@ -1,0 +1,29 @@
+build/
+install/
+log/
+.vscode/
+*.swp
+
+# Python virtualenv
+.venv/
+
+# Logs
+*.log
+ollama_startup.log
+
+# Local models (binaries)
+models/
+
+# Local data (if you don't want to version raw Excel)
+src/drowsiness_detection_pkg/drowsiness_detection/drowsiness_data_camera.xlsx
+src/drowsiness_detection_pkg/drowsiness_detection/drowsiness_data_steering.xlsx
+src/drowsiness_detection_pkg/drowsiness_detection/camera/drowsiness_data/
+
+# VLM scratch outputs
+src/vlm_context_extraction/frames1/
+src/vlm_context_extraction/key_frames/
+src/vlm_context_extraction/temp_cell1.txt
+
+# External cloned tools
+llama.cpp.qwen2vl/
+openevals/
