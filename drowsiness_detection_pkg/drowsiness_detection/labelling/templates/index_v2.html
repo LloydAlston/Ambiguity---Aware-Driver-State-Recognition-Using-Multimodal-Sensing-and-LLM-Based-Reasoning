@@ -1,0 +1,533 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<title>Driver Drowsiness Labelling</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<style>
+    body { font-family: Arial, sans-serif; margin: 20px; background-color: #f0f2f5; color: #333; }
+    h1 { color: #2c3e50; text-align: center; }
+    .container { display: flex; flex-direction: row; height: 90vh; gap: 20px; }
+    .panel {
+        border: 1px solid #ddd;
+        border-radius: 8px;
+        padding: 15px;
+        background-color: #fff;
+        box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        overflow-y: auto;
+    }
+    #left_panel { width: 25%; min-width: 250px; }
+    #camera_panel { flex-grow: 2; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+    #right_panel {
+        width: 45%;
+        max-width: 600px;
+        display: flex;
+        flex-direction: column;
+        gap: 20px;
+        overflow-y: hidden;
+    }
+
+    img { max-width: 100%; height: auto; border: 1px solid #ccc; border-radius: 6px; }
+
+    #right_panel > div {
+        flex-grow: 1;
+        position: relative;
+    }
+    canvas {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100% !important;
+        height: 100% !important;
+    }
+
+    button {
+        padding: 8px 12px;
+        border: 1px solid #ccc;
+        border-radius: 4px;
+        background-color: #f7f7f7;
+        cursor: pointer;
+        transition: background-color 0.2s, color 0.2s;
+    }
+    button:hover:enabled { background-color: #e9ecef; }
+    button:disabled { cursor: not-allowed; opacity: 0.6; }
+    button.selected { background-color: #007bff; color: white; border-color: #007bff; }
+
+    .groupbox { margin-bottom: 20px; }
+    label { font-weight: bold; display: block; margin-bottom: 8px; color: #555; }
+    input, textarea {
+        width: 100%;
+        padding: 8px;
+        border: 1px solid #ccc;
+        border-radius: 4px;
+        box-sizing: border-box;
+    }
+    textarea { height: 80px; resize: vertical; }
+    /* The style for #submit_btn is kept but is now vestigial since the button is removed */
+    #submit_btn {
+        width: 100%;
+        background-color: #28a745;
+        color: white;
+        border: none;
+        padding: 12px;
+        font-size: 1.1em;
+        transition: background-color 0.2s;
+    }
+    #submit_btn:disabled { background-color: #ccc; cursor: not-allowed; }
+    #submit_btn:hover:enabled { background-color: #218838; }
+
+    #notification-bar {
+        position: fixed;
+        top: 0;
+        left: 50%;
+        transform: translateX(-50%);
+        background-color: #ffc107;
+        color: #333;
+        padding: 10px 20px;
+        border-radius: 0 0 10px 10px;
+        box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+        font-weight: bold;
+        display: none;
+        z-index: 1000;
+        text-align: center;
+        width: fit-content;
+    }
+    .timer-display {
+        font-size: 1.2em;
+        font-weight: bold;
+    }
+    .red-timer { color: #dc3545; }
+    .green-timer { color: #28a745; }
+
+    @media (max-width: 1200px) {
+        .container { flex-direction: column; height: auto; }
+        #left_panel, #camera_panel, #right_panel { width: 100%; max-width: none; }
+    }
+</style>
+</head>
+<body>
+
+<h1>Driver Drowsiness Labelling</h1>
+<div id="notification-bar"></div>
+
+<div class="container">
+
+<div class="panel" id="left_panel">
+
+    <div class="groupbox">
+        <label>Annotator Name</label>
+        <input type="text" id="annotator_name" placeholder="Enter your name"/>
+    </div>
+    
+    <div class="groupbox">
+        <p style="font-size: 0.9em; margin: 5px 0;">Window ID: <span id="window-id">0</span></p>
+        <p style="font-size: 0.9em; margin: 5px 0;">Phase: <span id="current-phase">Collecting</span></p>
+        <p style="font-size: 0.9em; margin: 5px 0;">Time Left: <span id="main-timer" class="timer-display">--</span> s</p>
+    </div>
+
+
+    <div class="groupbox">
+        <label>Drowsiness Level</label>
+        <button class="drowsiness_btn" data-level="Low">Low</button>
+        <button class="drowsiness_btn" data-level="Moderate">Moderate</button>
+        <button class="drowsiness_btn" data-level="High">High</button>
+    </div>
+
+    <div class="groupbox">
+        <label>Notes</label>
+        <textarea id="notes"></textarea>
+    </div>
+
+    <div class="groupbox">
+        <label>Actions</label>
+        <button class="action_btn" data-action="Fan">Fan</button>
+        <button class="action_btn" data-action="Voice Command" id="voice_command_btn">Voice Command</button>
+        <button class="action_btn" data-action="Steering Vibration">Steering Vibration</button>
+
+        <div id="voice_command_options" style="margin-top: 10px;">
+            <label>Voice Command Feedback</label>
+            <button class="voice_feedback_btn" data-feedback="Yes">Yes</button>
+            <button class="voice_feedback_btn" data-feedback="No">No</button>
+        </div>
+    </div>
+    
+    <div class="groupbox">
+        <label>Video Control</label>
+        <button id="save_video_btn">Save Video</button>
+    </div>
+
+
+    <p id="status-message" style="font-style: italic; color: #6c757d;"></p>
+</div>
+
+<div class="panel" id="camera_panel">
+    <img id="camera_feed" src="/video_feed" alt="Camera Feed"/>
+</div>
+
+<div class="panel" id="right_panel">
+    <div><canvas id="earChart"></canvas></div>
+    <div><canvas id="marChart"></canvas></div>
+    <div><canvas id="steeringChart"></canvas></div>
+</div>
+
+</div>
+
+<script>
+const notificationBar = document.getElementById('notification-bar');
+const statusMessage = document.getElementById('status-message');
+const mainTimerDisplay = document.getElementById('main-timer');
+
+const voiceCommandBtn = document.getElementById('voice_command_btn');
+const voiceCommandOptions = document.getElementById('voice_command_options');
+
+let selectedDrowsiness = null;
+let selectedActions = new Set();
+let selectedVoiceFeedback = null;
+let currentWindowId = 0;
+let hasSubmittedForCurrentWindow = false; 
+let hasRequestedVideoSave = false; 
+
+const LABELING_THRESHOLD = 10; // 10 seconds
+
+function showNotification(msg, isError = false){
+    notificationBar.textContent = msg;
+    notificationBar.style.display = 'block';
+    notificationBar.style.backgroundColor = isError ? '#dc3545' : '#ffc107';
+    notificationBar.style.color = isError ? 'white' : '#333';
+    setTimeout(()=>{notificationBar.style.display='none';}, 5000);
+}
+
+// ----------- Fetch Live Data -----------
+function fetchDataAndRender(){
+    fetch('/get_live_data').then(res=>res.json()).then(data=>{
+        updateUI(data);
+        updatePlots(data); 
+    }).catch(error => {
+        console.error('Failed to fetch data:', error);
+    });
+}
+setInterval(fetchDataAndRender, 200);
+
+// ----------- Update UI & Auto-Submission Logic -----------
+function updateUI(data){
+    const phase_info = data.phase_info;
+    const windowId = phase_info.window_id || 0;
+    const remainingTime = phase_info.remaining_time || 0;
+    const isLabelingPhase = (remainingTime <= LABELING_THRESHOLD);
+
+    document.getElementById('window-id').textContent = windowId;
+    document.getElementById('current-phase').textContent = isLabelingPhase ? "Labeling" : "Collecting";
+    mainTimerDisplay.textContent = remainingTime.toFixed(0);
+
+    // Color the timer
+    if (isLabelingPhase) {
+        mainTimerDisplay.classList.add('red-timer');
+        mainTimerDisplay.classList.remove('green-timer');
+    } else {
+        mainTimerDisplay.classList.add('green-timer');
+        mainTimerDisplay.classList.remove('red-timer');
+    }
+
+    // Handle new window transition
+    if (windowId !== currentWindowId) {
+        if (windowId > currentWindowId) {
+            handleWindowTransition(currentWindowId);
+        }
+        currentWindowId = windowId;
+        resetLabelingUI();
+        statusMessage.textContent = `New window ${windowId} started. Collecting data...`;
+    }
+
+    // Check if the timer has expired for the current window to force submission
+    if (remainingTime < 1 && !hasSubmittedForCurrentWindow) {
+         handleWindowTransition(currentWindowId);
+    }
+
+    // Update status message
+    if (isLabelingPhase) {
+        statusMessage.textContent = `Time to label window ${windowId}. Submitting in ${remainingTime.toFixed(0)}s.`;
+    } else {
+        statusMessage.textContent = `Data collection in progress for window ${windowId}...`;
+    }
+
+    if (data.last_submitted_label && data.last_submitted_label.window_id === (windowId -1)) {
+        // This is where you might handle a new submission for the previous window
+    }
+}
+
+// Function to handle the automatic transition and submission
+function handleWindowTransition(windowIdToSubmit) {
+    if (!hasSubmittedForCurrentWindow) {
+        submitLabels(windowIdToSubmit); 
+        hasSubmittedForCurrentWindow = true; // Mark as submitted
+    }
+}
+
+function resetLabelingUI() {
+    document.querySelectorAll('.drowsiness_btn').forEach(b => b.classList.remove('selected'));
+    document.querySelectorAll('.action_btn').forEach(b => b.classList.remove('selected'));
+    document.querySelectorAll('.voice_feedback_btn').forEach(b => b.classList.remove('selected'));
+    document.getElementById('save_video_btn').classList.remove('selected'); 
+
+    selectedDrowsiness = null;
+    selectedActions.clear();
+    selectedVoiceFeedback = null;
+    document.getElementById('notes').value = "";
+    hasSubmittedForCurrentWindow = false;
+    hasRequestedVideoSave = false;
+}
+
+
+// ----------- Plots (unchanged) -----------
+function updatePlots(data){
+    function updateChart(chart, array, y_title, offset = 0.05){
+        if (!array || array.length === 0) {
+            chart.data.labels = [];
+            chart.data.datasets[0].data = [];
+            chart.options.scales.y.min = 0;
+            chart.options.scales.y.max = 1;
+            chart.update();
+            return;
+        }
+
+        const n = array.length;
+        const labels = Array.from({length:n}, (_,i) => -((n - 1 - i) * (1/60)).toFixed(2));
+
+        const minVal = Math.min(...array);
+        const maxVal = Math.max(...array);
+
+        chart.data.labels = labels;
+        chart.data.datasets[0].data = array;
+
+        chart.options.scales.x.min = -6;
+        chart.options.scales.x.max = 0;
+
+
+        chart.options.scales.y.min = minVal - offset;
+        chart.options.scales.y.max = maxVal + offset;
+
+        chart.update();
+    }
+
+    updateChart(earChart, data.live_ear, 'EAR Value', 0.02);
+    updateChart(marChart, data.live_mar, 'MAR Value', 0.02);
+    updateChart(steeringChart, data.live_steering, 'Steering Angle', 0.1);
+}
+
+// ----------- Event Listeners (mostly unchanged) -----------
+document.querySelectorAll('.drowsiness_btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+        if(btn.disabled) return;
+        document.querySelectorAll('.drowsiness_btn').forEach(b => b.classList.remove('selected'));
+        btn.classList.add('selected');
+        selectedDrowsiness = btn.dataset.level;
+        storeSelectedLabels();
+    });
+});
+
+
+document.querySelectorAll('.action_btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+        if(btn.disabled) return;
+        const action = btn.dataset.action;
+        const isSelected = btn.classList.toggle('selected');
+
+        if (isSelected) {
+            selectedActions.add(action);
+            activateAction(action);
+        } else {
+            selectedActions.delete(action);
+        }
+        storeSelectedLabels();
+    });
+});
+
+document.querySelectorAll('.voice_feedback_btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+        document.querySelectorAll('.voice_feedback_btn').forEach(b => b.classList.remove('selected'));
+        btn.classList.add('selected');
+        selectedVoiceFeedback = btn.dataset.feedback;
+        activateAction('Voice Feedback', selectedVoiceFeedback);
+        storeSelectedLabels();
+    });
+});
+
+// Listener for the new Save Video button
+const saveVideoBtn = document.getElementById('save_video_btn');
+saveVideoBtn.addEventListener('click', () => {
+    const isSelected = saveVideoBtn.classList.toggle('selected');
+    hasRequestedVideoSave = isSelected; // track flag based on toggle
+    storeSelectedLabels(); // immediately store updated state
+
+    if (isSelected) {
+        showNotification("Video save requested for this window.", false);
+    } else {
+        showNotification("Video save request canceled for this window.", false);
+    }
+});
+
+
+
+// ----------- Submit Labels & Action Activation (REVERTED JAVASCRIPT) -----------
+
+// REVERTED: Now checks for annotator name again.
+async function submitLabels(windowIdToSubmit){
+    const annotator_name = document.getElementById('annotator_name').value.trim();
+    
+    // Check for annotator name (critical requirement)
+    if (!annotator_name) {
+        showNotification(`AUTOMATIC SUBMISSION ERROR: Please enter your name. Submission for window ${windowIdToSubmit} failed.`, true);
+        return;
+    }
+    
+    showNotification(`Auto-Submitting data for Window ${windowIdToSubmit}...`, false);
+    await storeSelectedLabels();
+}
+
+// REVERTED: Now reads annotator name from the input field again.
+async function storeSelectedLabels() {
+    const annotator_name = document.getElementById('annotator_name').value.trim();
+    if (!annotator_name) return; // Do not store labels if annotator name is missing
+
+    const actionsToStore = Array.from(selectedActions);
+    const notes = document.getElementById('notes').value;
+    const currentWindowId = parseInt(document.getElementById('window-id').textContent);
+
+
+    try {
+        const res = await fetch('/store_selected_labels', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({
+                window_id: currentWindowId,
+                annotator_name: annotator_name,
+                drowsiness_level: selectedDrowsiness,
+                actions: actionsToStore,
+                notes: notes,
+                voice_feedback: selectedVoiceFeedback,
+                video_save_requested: hasRequestedVideoSave 
+            })
+        });
+        // console.log("Labels buffered successfully.");
+    } catch (error) {
+        console.error('Failed to store labels:', error);
+    }
+}
+
+// REVERTED: Now reads annotator name from the input field again.
+async function saveVideo(){
+    const annotator_name = document.getElementById('annotator_name').value.trim();
+    if (!annotator_name) {
+        showNotification("Please enter your name before saving video.", true);
+        return;
+    }
+    
+    hasRequestedVideoSave = true; 
+    storeSelectedLabels(); 
+    
+    const currentWindowId = parseInt(document.getElementById('window-id').textContent);
+
+    showNotification("Requesting video segment save...", false);
+
+    try {
+        const res = await fetch('/save_video_segment', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({
+                window_id: currentWindowId,
+                annotator_name: annotator_name,
+                drowsiness_level: selectedDrowsiness
+            })
+        });
+        const data = await res.json();
+        if (data.status === 'success') {
+            showNotification('Video save request sent successfully! (Segment around window ' + currentWindowId + ')');
+        } else {
+            showNotification('Video save request failed: ' + data.message, true);
+        }
+    } catch (error) {
+        console.error('Video save request failed:', error);
+        showNotification('Video save failed: Network error or server issue.', true);
+    }
+}
+
+
+// NEW FUNCTION: Activates actions in real-time (Unchanged)
+async function activateAction(action, feedback = null) {
+    try {
+        const res = await fetch('/activate_action', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ action: action, feedback: feedback })
+        });
+        const data = await res.json();
+        if (data.status === 'success') {
+            console.log(data.message);
+        } else {
+            console.error('Action activation failed:', data.message);
+        }
+    } catch (error) {
+        console.error('Failed to activate action:', error);
+    }
+}
+
+
+// ----------- Chart.js Init (unchanged) -----------
+const earCtx = document.getElementById('earChart').getContext('2d');
+const marCtx = document.getElementById('marChart').getContext('2d');
+const steeringCtx = document.getElementById('steeringChart').getContext('2d');
+
+const createChart = (ctx, label, color, y_title) => {
+    return new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: [],
+            datasets: [{
+                label: label,
+                borderColor: color,
+                data: [],
+                fill: false,
+                tension: 0.1,
+                pointRadius: 0
+            }]
+        },
+        options: {
+            animation: false,
+            responsive: true,
+            maintainAspectRatio: false,
+            scales: {
+                x: {
+                    title: {
+                        display: true,
+                        text: 'Time (s)'
+                    },
+                    grid: {
+                        display: false
+                    }
+                },
+                y: {
+                    title: {
+                        display: true,
+                        text: y_title
+                    },
+                    grid: {
+                        color: 'rgba(200, 200, 200, 0.4)'
+                    }
+                }
+            },
+            plugins: {
+                legend: {
+                    display: true
+                }
+            }
+        }
+    });
+};
+
+const earChart = createChart(earCtx, 'EAR (Eye Aspect Ratio)', 'blue', 'EAR Value');
+const marChart = createChart(marCtx, 'MAR (Mouth Aspect Ratio)', 'green', 'MAR Value');
+const steeringChart = createChart(steeringCtx, 'Steering', 'red', 'Steering Angle');
+</script>
+
+</body>
+</html>
